@@ -76,7 +76,7 @@ function wall(z, angle) = let(
 zrad * wave + cone;
 
 module vase_shape() {
-    points = concat([
+    exterior_points = [
         // Exterior wall -- points go bottom to top
         for(z = [0:z_step:height])
             for(i = [0:sides-1])
@@ -87,8 +87,8 @@ module vase_shape() {
                     py   = r * sin(i) - ((i > 180)? back_thickness : 0) 
                 )
                 [px, py, z] 
-    ],
-    [
+    ];
+    interior_points_OLD=[
         // Interior wall -- points go bottom to top
         for(z = [0:z_step:height - floor_height])
             for(i = [0:sides-1])
@@ -100,12 +100,47 @@ module vase_shape() {
                     py   = r * sin(i)
                 )
                 [px, py, zp] 
-    ]);
-        
+    ];
+    interior_points = [
+            for(z = [1:z_step:height])
+                for(s = [0:sides - 1])
+                    let(
+                        zp = height - z,
+                        f1 = s + sides*zp,
+                        f2 = s + sides*(zp+1),
+                        f3 = ((s+1) % sides) + sides*(zp+1),
+                        f4 = ((s+1) % sides) + sides*zp,
+
+                        pt1= exterior_points[f1],
+                        pt2= exterior_points[f2],
+                        pt3= exterior_points[f3],
+                        pt4 = exterior_points[f4],
+                        //cr1 = cross(pt3-pt2, pt3-pt1),
+                        //cr2 = cross(pt4-pt2, pt4-pt1),
+                        
+                        cr1 = cross(pt3-pt1, pt2-pt1),
+                        cr1_n = cr1/norm(cr1),
+                        cr1_p = [cr1_n[0], cr1_n[1], 0],
+                        cr2 = cross(pt4-pt2, pt4-pt1),
+                        norm1 = cr1/norm(cr1),
+                        norm2 = cr2/norm(cr2),
+                
+                        norm_difference=norm(norm1-norm2),
+                      //  is_inflection=norm_difference>.5?echo("TRUE"):false,
+                        
+                        cr = (norm1 + norm2) / 2 ,//* [1,1,0],
+                        normal = cr1/norm(cr1)*4,
+
+                        pt_int = (pt1-cr1_p*2),//+[0,0,100],
+                        xr = (pt1 == [0,0,0])?echo(z):0
+                        //zzz=echo(pt1, pt_int)
+                    )
+                    [pt_int[0]*0.9, pt_int[1]*0.8, pt_int[2]]
+    ];
     faces = concat(
         // Top left triangle of every ring (both inside and outside walls)
         [
-            for(z = [0:z_step:height*2 - floor_height]) 
+            for(z = [each [0:z_step:height], each [height:z_step:height*2-1]]) 
                 for(s = [0:r_step:sides - 1])
                     let(
                         f1 = s + sides*z,
@@ -117,7 +152,7 @@ module vase_shape() {
 
         // Bottom right triangle of every ring (both inside and outside walls)
         [
-            for(z = [0:z_step:height*2 - floor_height]) 
+            for(z = [each [0:z_step:height], each [height:z_step:height*2-1]]) 
                 for(s = [0:r_step:sides - 1])
                     let(
                         f1 = s + sides*z,
@@ -133,8 +168,9 @@ module vase_shape() {
         // Bottom of the object
         [[ for(s = [0:r_step:sides-1]) s]]  
     );
-
-    polyhedron (points=points, faces = faces);
+    echo(len(interior_points));
+    echo(len(interior_points_OLD));
+    polyhedron (points=concat(exterior_points,interior_points), faces = faces);
 }
 
 module drainage_holes() {
