@@ -13,7 +13,7 @@
 
 // ------- These variables are great for changing the shape of the object
 // How far to rotate the twist at the beginning in degrees
-phase          =  40;     // Recommended values 0 - 360
+phase          = 30;     // Recommended values 0 - 360
 
 // Radius multiplier
 radius         =  40;    // Recommended values 5 - 100
@@ -56,7 +56,7 @@ sides          =  360;
 // Even though it doesn't seem like the two bottoms would intersect because the inner
 // wall has 0 radius at the bottom, it can meet in a degenerate
 // point which causes rendering problems. 
-floor_height   =  5;
+floor_height   =  0;
 
 // ------- Parameters for the drainage tube
 tube_radius       =  5;
@@ -101,46 +101,74 @@ module vase_shape() {
                 )
                 [px, py, zp] 
     ];
-    interior_points = [
-            for(z = [1:z_step:height])
+            
+    normals = [
+            for(z = [0:z_step:height-1])
                 for(s = [0:sides - 1])
                     let(
-                        zp = height - z,
+                        zp = z,//check
                         f1 = s + sides*zp,
-                        f2 = s + sides*(zp+1),
-                        f3 = ((s+1) % sides) + sides*(zp+1),
+                        f2 = s + sides*min(height, zp+1),
+                        f3 = ((s+1) % sides) + sides*min(height, zp+1),
                         f4 = ((s+1) % sides) + sides*zp,
 
                         pt1= exterior_points[f1],
                         pt2= exterior_points[f2],
                         pt3= exterior_points[f3],
                         pt4 = exterior_points[f4],
-                        //cr1 = cross(pt3-pt2, pt3-pt1),
-                        //cr2 = cross(pt4-pt2, pt4-pt1),
-                        
+                
                         cr1 = cross(pt3-pt1, pt2-pt1),
-                        cr1_n = cr1/norm(cr1),
+                        cr1_n = cr1/norm(cr1)+[0,0,0],
                         cr1_p = [cr1_n[0], cr1_n[1], 0],
                         cr2 = cross(pt4-pt2, pt4-pt1),
-                        norm1 = cr1/norm(cr1),
-                        norm2 = cr2/norm(cr2),
-                
-                        norm_difference=norm(norm1-norm2),
-                      //  is_inflection=norm_difference>.5?echo("TRUE"):false,
-                        
-                        cr = (norm1 + norm2) / 2 ,//* [1,1,0],
-                        normal = cr1/norm(cr1)*4,
 
-                        pt_int = (pt1-cr1_p*2),//+[0,0,100],
-                        xr = (pt1 == [0,0,0])?echo(z):0
-                        //zzz=echo(pt1, pt_int)
+                        pt_int = (pt1-cr1_n)+[0,0,0]
                     )
-                    [pt_int[0]*0.9, pt_int[1]*0.8, pt_int[2]]
+                    cr1_n
+        ];
+        //echo(normals);
+
+    normals_massaged = [
+        // At a discontinuity in the underlying radius function, the normal points in a 
+        // basically random direction
+        // So we replace it with a fake normal that should produce an OK-looking result
+            for(z = [0:z_step:height-1])
+                // There can't be a discontinuity at the beginning or end (by definition)
+                for(s = [0:sides - 1]) 
+                    let(
+                        normal_diff = norm(normals[z*sides+s+1] - normals[z*sides+s]),
+                        normal_diff2 = (s==sides-1)?normals[z*sides+s]:normal_diff,
+                       // b1=echo(normals[z*sides+s+1] - normals[z*sides+s], normal_diff),
+                        //blank=(normal_diff>.01)?echo("DIRTY"):0,
+                        pt=exterior_points[z*sides+s],
+                        fake_normal=15 * pt/norm(pt),
+                        fake_normal_flat = [fake_normal[0],fake_normal[1],0],
+                        normal_clean = (normal_diff>0.25)?fake_normal_flat:(normals[z*sides+s])
+                    )
+                    normal_clean            
     ];
+                echo("999",norm([0.995506, -0.0947008, 0]));
+                //echo("XXX",normals_massaged);
+    interior_points = [
+        for(z = [0:z_step:height-1])
+            for(i = [0:sides-1])
+                    let(                    
+                        zp = height - z-1,// imp
+                        ext_point = exterior_points[zp*sides+i],
+            normal=normals_massaged[zp*sides+i],
+                       // blacnk=echo(z, zp, i, zp*sides+i, len(normals), normal),
+                        pt_int = ext_point-normal //+[0,0,100],
+                        //x=echo(ext_point, len(exterior_points), z*sides+i)
+                    )
+                    pt_int
+    ];            //echo(len(normals));
+
+         //  echo(interior_points);
+            
     faces = concat(
         // Top left triangle of every ring (both inside and outside walls)
         [
-            for(z = [each [0:z_step:height], each [height:z_step:height*2-1]]) 
+            for(z = [each [0:z_step:height-1], each [height:z_step:height*2-floor_height]]) 
                 for(s = [0:r_step:sides - 1])
                     let(
                         f1 = s + sides*z,
@@ -152,7 +180,7 @@ module vase_shape() {
 
         // Bottom right triangle of every ring (both inside and outside walls)
         [
-            for(z = [each [0:z_step:height], each [height:z_step:height*2-1]]) 
+            for(z = [each [0:z_step:height-1], each [height:z_step:height*2-floor_height]]) 
                 for(s = [0:r_step:sides - 1])
                     let(
                         f1 = s + sides*z,
@@ -160,17 +188,18 @@ module vase_shape() {
                         f4 = ((s+1) % sides) + sides*z
                     )
                     [f3,f4,f1]
-        ],
+        ]
 
         // Interior floor of the object -- note polygon is opposite orientation
-        [[ for(s = [sides:-r_step:0]) ((height*2 - floor_height+1) * (sides) + s)]], 
+        //[[ for(s = [sides:-r_step:0]) ((height*2 - floor_height-2) * (sides) + s)]], 
 
         // Bottom of the object
-        [[ for(s = [0:r_step:sides-1]) s]]  
+        //[[ for(s = [0:r_step:sides-1]) s]]  
     );
-    echo(len(interior_points));
-    echo(len(interior_points_OLD));
-    polyhedron (points=concat(exterior_points,interior_points), faces = faces);
+   // echo(len(interior_points));
+   // echo(len(interior_points_OLD));
+   //             echo(exterior_points[1]);
+    polyhedron (points=concat(exterior_points, interior_points), faces = faces);
 }
 
 module drainage_holes() {
@@ -187,7 +216,7 @@ module drainage_tube() {
         translate([0,0,tube_thickness]) 
             cylinder(h=(height), 
                 r=(tube_radius-tube_thickness));
-        translate([-20,-100,0]) cube([100, 100, 100]);
+     //   translate([-20,-100,0]) cube([100, 100, 100]);
         drainage_holes();
     }
 }
