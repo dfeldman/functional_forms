@@ -22,7 +22,9 @@ radius         =  40;    // Recommended values 5 - 100
 sharpness      =  2;    // Recommended values .1 - 10
 
 // How fast to taper the inside of the object
-taper          =  0.2;  // Recommended values 0 - 1
+taper          =  0.4;  // Recommended values 0 - 1
+
+amp            = 0.75;
 
 // Number of ripples
 ripples        =  3;    // Recommended values 0 - 10
@@ -56,7 +58,7 @@ sides          =  360;
 // Even though it doesn't seem like the two bottoms would intersect because the inner
 // wall has 0 radius at the bottom, it can meet in a degenerate
 // point which causes rendering problems. 
-floor_height   =  0;
+floor_height   =  20;
 
 // ------- Parameters for the drainage tube
 tube_radius       =  5;
@@ -73,16 +75,32 @@ function wall(z, angle) = let(
                 cone  = taper * z,
                 wave  = abs(cos(angle*ripples+phase))
 )
-zrad * wave + cone;
+zrad * wave * amp + cone;
+
+function closer(a, b, c) {
+    if (norm(a-c) > norm(b-c)) {
+        return a} else {return b}
+}
 
 module vase_shape() {
+    radii = [
+        for(z = [0:z_step:height])
+            for(i = [0:sides-1])
+                let(
+                    r     =  max(epsilon*2, 
+                                (i< 20 || i > 160)? 0 : wall(z, i + twist * z)), 
+                    px   = r * cos(i),
+                    py   = r * sin(i) - ((i > 160)? back_thickness : 0) 
+                )
+                [px, py, z] 
+    ];
     exterior_points = [
         // Exterior wall -- points go bottom to top
         for(z = [0:z_step:height])
             for(i = [0:sides-1])
                 let(
                     r     =  max(epsilon*2, 
-                                (i > 180)? 0 : wall(z, i + twist * z)), 
+                                (i< 0 || i > 180)? 0 : wall(z, i + twist * z)-20), 
                     px   = r * cos(i),
                     py   = r * sin(i) - ((i > 180)? back_thickness : 0) 
                 )
@@ -103,6 +121,7 @@ module vase_shape() {
     ];
             
     normals = [
+       // Compute the normal for each exterior point
             for(z = [0:z_step:height-1])
                 for(s = [0:sides - 1])
                     let(
@@ -129,9 +148,9 @@ module vase_shape() {
         //echo(normals);
 
     normals_massaged = [
-        // At a discontinuity in the underlying radius function, the normal points in a 
-        // basically random direction
-        // So we replace it with a fake normal that should produce an OK-looking result
+        // At a nonsmooth point in the underlying radius function, the normal points in a 
+        // basically random direction. If we used it, we'd get self-intersections in the shape.
+        // So we replace it with a fake normal that should produce an OK-looking result in most cases.
             for(z = [0:z_step:height-1])
                 // There can't be a discontinuity at the beginning or end (by definition)
                 for(s = [0:sides - 1]) 
@@ -141,11 +160,13 @@ module vase_shape() {
                        // b1=echo(normals[z*sides+s+1] - normals[z*sides+s], normal_diff),
                         //blank=(normal_diff>.01)?echo("DIRTY"):0,
                         pt=exterior_points[z*sides+s],
-                        fake_normal=15 * pt/norm(pt),
+                        fake_normal=5 * pt/norm(pt),
                         fake_normal_flat = [fake_normal[0],fake_normal[1],0],
-                        normal_clean = (normal_diff>0.25)?fake_normal_flat:(normals[z*sides+s])
+                        normal_clean = (normal_diff>0.25)?fake_normal_flat:(normals[z*sides+s]),
+                        normal_clean2 = (s<=8) ?[0,0.01,0]:normal_clean,
+                        normal_clean3 = (s > 180)?[0,-1,0]:normal_clean2, 
                     )
-                    normal_clean            
+                    normal_clean3
     ];
                 echo("999",norm([0.995506, -0.0947008, 0]));
                 //echo("XXX",normals_massaged);
@@ -154,10 +175,13 @@ module vase_shape() {
             for(i = [0:sides-1])
                     let(                    
                         zp = height - z-1,// imp
-                        ext_point = exterior_points[zp*sides+i],
-            normal=normals_massaged[zp*sides+i],
+                        ip1 = min(i, sides-0),
+                        ip2 = max(ip1, 0),
+                        ext_point = exterior_points[zp*sides+ip2],
+            normal=normals_massaged[zp*sides+ip2],
                        // blacnk=echo(z, zp, i, zp*sides+i, len(normals), normal),
-                        pt_int = ext_point-normal //+[0,0,100],
+                        pt_int1 = ext_point-normal*3, //+[0,0,100],
+                        pt_int2 = closer(pt_int1, ext_point, [0, 0, z]),
                         //x=echo(ext_point, len(exterior_points), z*sides+i)
                     )
                     pt_int
@@ -168,7 +192,7 @@ module vase_shape() {
     faces = concat(
         // Top left triangle of every ring (both inside and outside walls)
         [
-            for(z = [each [0:z_step:height-1], each [height:z_step:height*2-floor_height]]) 
+            for(z = [each [0:z_step:height], each [height:z_step:height*2-floor_height-1]]) 
                 for(s = [0:r_step:sides - 1])
                     let(
                         f1 = s + sides*z,
@@ -180,7 +204,7 @@ module vase_shape() {
 
         // Bottom right triangle of every ring (both inside and outside walls)
         [
-            for(z = [each [0:z_step:height-1], each [height:z_step:height*2-floor_height]]) 
+            for(z = [each [0:z_step:height], each [height:z_step:height*2-floor_height-1]]) 
                 for(s = [0:r_step:sides - 1])
                     let(
                         f1 = s + sides*z,
@@ -188,13 +212,13 @@ module vase_shape() {
                         f4 = ((s+1) % sides) + sides*z
                     )
                     [f3,f4,f1]
-        ]
+        ],
 
         // Interior floor of the object -- note polygon is opposite orientation
-        //[[ for(s = [sides:-r_step:0]) ((height*2 - floor_height-2) * (sides) + s)]], 
+        [[ for(s = [sides:-r_step:0]) ((height*2 - floor_height) * (sides) + s)]],
 
         // Bottom of the object
-        //[[ for(s = [0:r_step:sides-1]) s]]  
+        [[ for(s = [0:r_step:sides-1]) s]]  
     );
    // echo(len(interior_points));
    // echo(len(interior_points_OLD));
