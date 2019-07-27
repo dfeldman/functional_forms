@@ -33,14 +33,14 @@ ripples        =  3;    // Recommended values 0 - 10
 twist          =  .8;   // Recommended values 0 - 3
 
 // Distance from the inner to the outer wall of the object at its thickest point
-wall_thickness =  15;     // Recommended values 1 - 5
+wall_thickness =  5;     // Recommended values 1 - 5
 
 // Distance from the inner to the outer wall of the back at its thickest point
-back_thickness =  15;     // Recommended values 1 - 5
+back_thickness =  5;     // Recommended values 1 - 5
 
 // ------- These variables should probably not be changed
 // The size of the sharp point on the bottom of the object
-epsilon        =  0.01;
+epsilon        =  1;
 
 // Number of z steps
 height         =  100; 
@@ -77,12 +77,25 @@ function wall(z, angle) = let(
 )
 zrad * wave * amp + cone;
 
+function int_pt(z, s) = let(
+    assert(z >= 0),
+    assert(z < height),
+    assert(s >= 0),
+    assert(s <= sides))
+    z*(sides+1)+s;
+
+function ext_pt(z, s) = let(
+    assert(z >= 0),
+    assert(z < height),
+    assert(s >= 0),
+    assert(s <= sides))
+    height*(sides+1) + z*(sides+1)+s;
 
 module vase_shape() {
     
     vase_shape_exterior_points = [
         for(z = [0:z_step:height-1])
-            for(i = [0:sides-1])
+            for(i = [0:sides])
                 let(
                     r     =  max(epsilon*2, wall(z, i + twist * z)), 
                     px   = r * cos(i),
@@ -96,7 +109,7 @@ module vase_shape() {
     vase_shape_interior_points =[
         // Interior wall -- points go bottom to top
         for(z = [0:z_step:height-1])
-            for(i = [0:sides-1])
+            for(i = [0:sides])
                 let(
                   //  zp = height - z,
                     r     =  max(epsilon, 
@@ -114,11 +127,11 @@ module vase_shape() {
         // Top left triangle of every ring (both inside and outside walls)
         [
             for(z = [floor_height:z_step:height-2]) 
-                for(s = [0:r_step:sides - 3])
+                for(s = [0:r_step:sides - 1])
                     let(
-                        f1 = s + sides*z,
-                        f2 = s + sides*(z+1),
-                        f3 = ((s+1) % sides) + sides*(z+1)
+                        f1 = int_pt(z, s), //s + sides*z,
+                        f2 = int_pt(z+1, s), //s + sides*(z+1),
+                        f3 = int_pt(z+1, s+1) // ((s+1) % sides) + sides*(z+1)
                     )
                     [f3,f2,f1]
         ],
@@ -126,65 +139,73 @@ module vase_shape() {
         // Bottom right triangle of every ring (both inside and outside walls)
         [
             for(z = [floor_height:z_step:height-2]) 
-                for(s = [0:r_step:sides - 3])
+                for(s = [0:r_step:sides - 1])
                     let(
-                        f1 = s + sides*z,
-                        f3 = ((s+1) % sides) + sides*(z+1),
-                        f4 = ((s+1) % sides) + sides*z
+                        f1 = int_pt(z, s) , //s + sides*z,
+                        f3 = int_pt(z+1, s+1), //((s+1) % sides) + sides*(z+1),
+                        f4 = int_pt(z, s+1) //((s+1) % sides) + sides*z
                     )
                     [f1,f4,f3]
         ],
-        // Top left triangle of every ring (both inside and outside walls)
+//        // Top left triangle of every ring (both inside and outside walls)
         [
-            for(z = [height:z_step:height*2]) 
-                for(s = [0:r_step:sides - 3])
+            for(z = [0:z_step:height-2]) 
+                for(s = [0:r_step:sides - 1])
                     let(
-                        f1 = s + sides*z,
-                        f2 = s + sides*(z+1),
-                        f3 = ((s+1) % sides) + sides*(z+1)
+                        f1 = ext_pt(z, s) , // s + sides*z,
+                        f2 = ext_pt(z+1, s), // s + sides*(z+1),
+                        f3 = ext_pt(z+1, s+1) //((s+1) % sides) + sides*(z+1)
                     )
                     [f1,f2,f3]
         ],
 
         // Bottom right triangle of every ring (both inside and outside walls)
         [
-            for(z = [height:z_step:height*2]) 
-                for(s = [0:r_step:sides - 3])
+            for(z = [0:z_step:height-2]) 
+                for(s = [0:r_step:sides - 1])
                     let(
-                        f1 = s + sides*z,
-                        f3 = ((s+1) % sides) + sides*(z+1),
-                        f4 = ((s+1) % sides) + sides*z
+                        f1 = ext_pt(z, s), //s + sides*z,
+                        f3 = ext_pt(z+1, s+1), //((s+1) % sides) + sides*(z+1),
+                        f4 = ext_pt(z, s+1) //((s+1) % sides) + sides*z
                     )
-                    [f3,f4,f1]
+                    [f3,f4,f1] 
         ],
-        // Interior floor of the object -- note polygon is opposite orientation
-        [[ for(s = [sides:-r_step:0]) ((floor_height) * (sides) + s)]],
-
-        // Bottom of the object
-       // [[ for(s = [0:r_step:sides-1]) s]]  ,
+//        // Interior floor of the object -- note polygon is opposite orientation -- degen
+      [[ for(s = [sides:-1:0]) int_pt(floor_height, s)]],
+//
+//        // Bottom of the object -- degen
+        [[ for(s = [0:r_step:sides]) ext_pt(0, s)]]  ,
             
-        // Left side of object
-        [
-           concat( [for(z = [height:-1:0]) sides*z-2], // interior 1st column
-               [for(z = [height+1:height*2]) sides*z-2]) // exterior 1st column
+//////        // Left side of object
+//        [
+//           concat( [for(z = [height-1:-1:0]) ext_pt(z,sides)], 
+//                   [for(z = [0:height-1]) ext_pt(z,0)],
+//                   [for(z = [height-1:-1:floor_height]) int_pt(z, 0)],
+//                   [for(z=[floor_height:height-1]) int_pt(z,sides)] )
+//       ]
                    
-        ],
         [
-               
-           concat( [for(z = [0:height-1]) sides*z], // interior 1st column
-               [for(z = [height*2:-1:height+1]) sides*z]) // exterior 1st column
-        ],
-        // Right side of object
-//       [
-//           concat([for(z = [0:z_step:height]) 0 + sides-2 + sides*z], // exterior last column
-//                  [for(z = [0:z_step:height]) height*sides + sides-2 + sides*z]) // interior last column
-//        ],
-//                  
-        // Top of object
+           concat( 
+                   [for(z=[height-1:-1:floor_height]) int_pt(z,sides)],
+                   [for(z = [floor_height:height-1]) int_pt(z, 0)],
+                       [for(z = [height-1:-1:0]) ext_pt(z,0)],
+                   [for(z = [0:height-1]) ext_pt(z,sides)]
+                    
+                   
+                   
+                       )
+       ],
+//        [
+//           concat( [for(z = [0:height-1]) int_pt(z, 0)], 
+//                   [for(z = [height-1:-1:0]) ext_pt(z,0)] )
+//       ],
+//        [  concat( [for(z = [floor_height : -1 : 0]) int_pt(z, 0)],
+//                  [for(z = [0 : floor_height]) int_pt(z, sides)] ) ],  
+////        // Top of object
         [
-           concat([for(s = [0:sides-2]) (height-1)*sides+ s  ],
-                  [for(s = [sides-2:-1:0]) (height*2-1)*(sides) + s]     ) // interior last column
-        ]
+           concat([for(s = [0:sides])    int_pt(height-1,s) ],
+                  [for(s = [sides:-1:0]) ext_pt(height-1,s) ]     ) 
+       ]
     );
     
   // vase_shape_left_side = concat(
@@ -193,8 +214,11 @@ module vase_shape() {
    // echo(len(interior_points));
    // echo(len(interior_points_OLD));
    //             echo(exterior_points[1]);
-    polyhedron (points=concat(vase_shape_interior_points, vase_shape_exterior_points), 
-                   faces = faces);
+    //polyhedron (points=concat(vase_shape_interior_points, vase_shape_exterior_points), 
+    //              faces = faces);
+                  
+   polyhedron (points=concat(vase_shape_interior_points, vase_shape_exterior_points), 
+                  faces = faces);
 }
 
 module drainage_holes() {
@@ -211,7 +235,7 @@ module drainage_tube() {
         translate([0,0,tube_thickness]) 
             cylinder(h=(height), 
                 r=(tube_radius-tube_thickness));
-     //   translate([-20,-100,0]) cube([100, 100, 100]);
+       translate([-20,-100,0]) cube([100, 100, 100]);
         drainage_holes();
     }
 }
@@ -231,8 +255,9 @@ module wall_plate() {
 union() { 
     // The vase itself
     vase_shape();
+    cube([1,1,1]);
     // Wall plate
     //wall_plate();
     // Drainage tube
-    drainage_tube();
+ //   drainage_tube();
 };
