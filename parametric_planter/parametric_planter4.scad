@@ -172,53 +172,57 @@ module vase_shape() {
         ],
 //        // Interior floor of the object -- note polygon is opposite orientation -- degen
       [[ for(s = [sides:-1:0]) int_pt(floor_height, s)]],
-//
-//        // Bottom of the object -- degen
+
+     // Bottom of the object -- degen
         [[ for(s = [0:r_step:sides]) ext_pt(0, s)]]  ,
             
-//////        // Left side of object
-//        [
-//           concat( [for(z = [height-1:-1:0]) ext_pt(z,sides)], 
-//                   [for(z = [0:height-1]) ext_pt(z,0)],
-//                   [for(z = [height-1:-1:floor_height]) int_pt(z, 0)],
-//                   [for(z=[floor_height:height-1]) int_pt(z,sides)] )
-//       ]
-                   
+
         [
            concat( 
                    [for(z=[height-1:-1:floor_height]) int_pt(z,sides)],
                    [for(z = [floor_height:height-1]) int_pt(z, 0)],
-                       [for(z = [height-1:-1:0]) ext_pt(z,0)],
+                   [for(z = [height-1:-1:0]) ext_pt(z,0)],
                    [for(z = [0:height-1]) ext_pt(z,sides)]
-                    
-                   
-                   
                        )
        ],
-//        [
-//           concat( [for(z = [0:height-1]) int_pt(z, 0)], 
-//                   [for(z = [height-1:-1:0]) ext_pt(z,0)] )
-//       ],
-//        [  concat( [for(z = [floor_height : -1 : 0]) int_pt(z, 0)],
-//                  [for(z = [0 : floor_height]) int_pt(z, sides)] ) ],  
-////        // Top of object
+        // Top of object
         [
            concat([for(s = [0:sides])    int_pt(height-1,s) ],
                   [for(s = [sides:-1:0]) ext_pt(height-1,s) ]     ) 
        ]
     );
     
-  // vase_shape_left_side = concat(
-        // First point of every line on the left
-   //vase_shape_interior_floor_faces = 
-   // echo(len(interior_points));
-   // echo(len(interior_points_OLD));
-   //             echo(exterior_points[1]);
     //polyhedron (points=concat(vase_shape_interior_points, vase_shape_exterior_points), 
     //              faces = faces);
-                  
-   polyhedron (points=concat(vase_shape_interior_points, vase_shape_exterior_points), 
-                  faces = faces);
+   back_faces = concat( 
+       [
+           concat( 
+                   [for(z=[height-1:-1:0]) int_pt(z,0)],
+                   [for(z = [0:height-1]) ext_pt(z,sides)]
+                 )
+       ],
+       [
+            for(z = [0:z_step:height-2]) 
+                    let(
+                        p1 = ext_pt(z, 0), //s + sides*z,
+                        p2 = ext_pt(z, 1), //((s+1) % sides) + sides*(z+1),
+                        p3 = ext_pt(z+1, 1), //((s+1) % sides) + sides*(z+1),
+                        p4 = ext_pt(z, 1) //((s+1) % sides) + sides*z
+                    )
+                    [p1,p2,p3,p4] 
+        ]
+   ); 
+    pts=concat(vase_shape_interior_points, vase_shape_exterior_points);
+
+     l= echo([ for(z = [0:z_step:height-1]) let(pt3 =pts[ext_pt(z, 0)]) [pt3[0], pt3[2]] ]);
+     union() {
+         polyhedron (points=pts, faces = faces);
+         linear_extrude(height=5) {         
+            polygon(points = concat(
+                [ for(z = [0:z_step:height-1]) let(pt3 =pts[ext_pt(z, 0)]) [pt3[0], pt3[2]] ],
+                [ for(z = [height-1:-1:0]) let(pt3=pts[ext_pt(z, sides)]) [pt3[0], pt3[2]]  ] ));
+            }
+    }
 }
 
 module drainage_holes() {
