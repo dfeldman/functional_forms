@@ -19,10 +19,10 @@ phase          = 30;     // Recommended values 0 - 360
 radius         =  40;    // Recommended values 5 - 100
 
 // How fast for the curve to expand (going from bottom to top)
-sharpness      =  2;    // Recommended values .1 - 10
+sharpness      =  5;    // Recommended values .1 - 10
 
 // How fast to taper the inside of the object
-taper          =  0.4;  // Recommended values 0 - 1
+taper          =  .3;  // Recommended values 0 - 1
 
 amp            = 0.75;
 
@@ -30,7 +30,7 @@ amp            = 0.75;
 ripples        =  3;    // Recommended values 0 - 10
 
 // Twisting factor
-twist          =  .8;   // Recommended values 0 - 3
+twist          =  1;   // Recommended values 0 - 3
 
 // Distance from the inner to the outer wall of the object at its thickest point
 wall_thickness =  5;     // Recommended values 1 - 5
@@ -40,7 +40,7 @@ back_thickness =  5;     // Recommended values 1 - 5
 
 // ------- These variables should probably not be changed
 // The size of the sharp point on the bottom of the object
-epsilon        =  1;
+epsilon        =  .1;
 
 // Number of z steps
 height         =  100; 
@@ -66,7 +66,7 @@ tube_thickness    =  1;
 tube_floor_height =  35;
 tube_hole_spacing =  5;
 tube_hole_count   =  3;
-tube_hole_radius  =  0.2;
+tube_hole_radius  =  .5;
 tube_hole_depth   =  5;
 
 // This function defines the radius of the object at each z-step and angle
@@ -78,17 +78,19 @@ function wall(z, angle) = let(
 zrad * wave * amp + cone;
 
 function int_pt(z, s) = let(
-    assert(z >= 0),
-    assert(z < height),
-    assert(s >= 0),
-    assert(s <= sides))
+//    assert(z >= 0),
+//    assert(z < height),
+//    assert(s >= 0),
+//    assert(s <= sides)
+    )
     z*(sides+1)+s;
 
 function ext_pt(z, s) = let(
-    assert(z >= 0),
-    assert(z < height),
-    assert(s >= 0),
-    assert(s <= sides))
+//    assert(z >= 0),
+//    assert(z < height),
+//    assert(s >= 0),
+//    assert(s <= sides)
+    )
     height*(sides+1) + z*(sides+1)+s;
 
 module vase_shape() {
@@ -217,7 +219,7 @@ module vase_shape() {
      l= echo([ for(z = [0:z_step:height-1]) let(pt3 =pts[ext_pt(z, 0)]) [pt3[0], pt3[2]] ]);
      union() {
          polyhedron (points=pts, faces = faces);
-         linear_extrude(height=5) {         
+         rotate([90, 0, 0]) linear_extrude(height=2) {         
             polygon(points = concat(
                 [ for(z = [0:z_step:height-1]) let(pt3 =pts[ext_pt(z, 0)]) [pt3[0], pt3[2]] ],
                 [ for(z = [height-1:-1:0]) let(pt3=pts[ext_pt(z, sides)]) [pt3[0], pt3[2]]  ] ));
@@ -235,7 +237,7 @@ module drainage_holes() {
 
 module drainage_tube() {
     translate([0,0,tube_floor_height]) difference() {
-        cylinder(h=height-tube_floor_height, r=tube_radius);
+        cylinder(h=height-tube_floor_height-1, r=tube_radius);
         translate([0,0,tube_thickness]) 
             cylinder(h=(height), 
                 r=(tube_radius-tube_thickness));
@@ -247,21 +249,20 @@ module drainage_tube() {
 module wall_plate() {
     union() {
         difference() {
-            translate([-10, -6, 60]) cube([20,3,20]); 
+            translate([0, -1, 70]) rotate([90,0,0]) cylinder(r=15,h=2); 
             // Drill a hole in wall plate for a nail
-            translate([0,-6,70]) rotate([0,90,90]) cylinder(r=5,h=2);  
+            translate([0,-6,70]) rotate([0,90,90]) cylinder(r=5,h=5);  
         }
         // Box over the hole to form attachment ledge for a hook
-        translate([-10, -6, 72]) cube([20,0.5,8]);
+        translate([-10, -3, 72]) cube([20,0.5,8]);
     }
 }
 
 union() { 
     // The vase itself
     vase_shape();
-    cube([1,1,1]);
     // Wall plate
-    //wall_plate();
+    wall_plate();
     // Drainage tube
- //   drainage_tube();
+    drainage_tube();
 };
