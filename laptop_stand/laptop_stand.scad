@@ -87,12 +87,16 @@ module lower() {
     difference() {
         translate([-TABLE_GRIP_DEPTH, 0, -TABLE_THICKNESS]) 
             cube([TABLE_GRIP_DEPTH, TABLE_GRIP_WIDTH, TABLE_THICKNESS]);
-        translate([-TABLE_GRIP_DEPTH, TABLE_GRIP_THICKNESS, -(TABLE_THICKNESS-TABLE_GRIP_THICKNESS)]) 
-            cube([TABLE_GRIP_DEPTH, TABLE_GRIP_WIDTH, TABLE_THICKNESS-TABLE_GRIP_THICKNESS]);
-      //  translate([0,3,-28]) cylinder(r=2);
+        translate([-TABLE_GRIP_DEPTH, 
+                    TABLE_GRIP_THICKNESS, 
+                   -(TABLE_THICKNESS-TABLE_GRIP_THICKNESS)]) 
+            cube([TABLE_GRIP_DEPTH, 
+                  TABLE_GRIP_WIDTH, 
+                  TABLE_THICKNESS - TABLE_GRIP_THICKNESS]);
     }
 }
 
+// Screw hole on the grip if needed
 module screw_hole() {
         translate([-TABLE_GRIP_DEPTH/2,
                 TABLE_GRIP_WIDTH/2,
